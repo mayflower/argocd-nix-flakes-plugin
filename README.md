@@ -18,7 +18,7 @@ resources:
 - github.com/argoproj/argo-cd//manifests/cluster-install?ref=v2.5.5
 
 components:
-- github.com/mayflower/argocd-nix-flakes-plugin//manifests?ref=master
+- github.com/mayflower/argocd-nix-flakes-plugin//manifests?ref=v0.1
 ```
 
 ## How to use in your ArgoCD Application
@@ -37,7 +37,7 @@ dependencies:
       ${pkgs.jsonnet-bundler}/bin/jb install
       ${pkgs.tanka}/bin/tk show
     '';
-  }
+  };
 }
 ```
 
