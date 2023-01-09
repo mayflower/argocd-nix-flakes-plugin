@@ -16,6 +16,8 @@ spec:
           env:
             - name: ARGOCD_EXEC_TIMEOUT
               value: "120"
+            - name: SOPS_AGE_KEY_FILE
+              value: /argocd-sops-key/age
           volumeMounts:
             - mountPath: /var/run/argocd
               name: var-files
@@ -26,9 +28,15 @@ spec:
               name: cmp-plugin
             - mountPath: /tmp
               name: cmp-tmp
+            - mountPath: /argocd-sops-key
+              name: argocd-sops-key
+              readOnly: true
       volumes:
         - configMap:
             name: cmp-plugin
           name: cmp-plugin
         - emptyDir: {}
           name: cmp-tmp
+        - name: argocd-sops-key
+          secret:
+            secretName: argocd-sops-key
