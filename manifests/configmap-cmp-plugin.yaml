@@ -1,0 +1,49 @@
+apiVersion: v1
+data:
+  nix-flakes.yaml: |-
+    "apiVersion": "argoproj.io/v1alpha1"
+    "kind": "ConfigManagementPlugin"
+    "metadata":
+      "name": "nix-flakes-plugin-generic"
+    "spec":
+      "allowConcurrency": true
+      "discover":
+        "find":
+          "command":
+          - "sh"
+          - "-c"
+          - "nix eval --impure --expr '(builtins.getFlake (toString ./.)).apps.${builtins.currentSystem}.argoGenerate'"
+      "generate":
+        "command":
+        - "sh"
+        - "-c"
+        - "nix run .#apps.x86_64-linux.argoGenerate"
+      "lockRepo": false
+kind: ConfigMap
+metadata:
+  name: nix-flakes-cmp-plugin-generic
+---
+apiVersion: v1
+data:
+  nix-flakes.yaml: |-
+    "apiVersion": "argoproj.io/v1alpha1"
+    "kind": "ConfigManagementPlugin"
+    "metadata":
+      "name": "nix-flakes-plugin-sops-tanka"
+    "spec":
+      "allowConcurrency": true
+      "discover":
+        "find":
+          "command":
+          - "sh"
+          - "-c"
+          - "nix eval --impure --expr '(builtins.getFlake (toString ./.)).apps.${builtins.currentSystem}.argoGenerate'"
+      "generate":
+        "command":
+        - "sh"
+        - "-c"
+        - "nix run .#apps.x86_64-linux.argoGenerate"
+      "lockRepo": false
+kind: ConfigMap
+metadata:
+  name: nix-flakes-cmp-plugin-sops-tanka

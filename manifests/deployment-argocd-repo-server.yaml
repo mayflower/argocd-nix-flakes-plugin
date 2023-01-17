@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argocd-repo-server
+spec:
+  template:
+    spec:
+      containers:
+      - command:
+        - /var/run/argocd/argocd-cmp-server
+        env: []
+        image: ghcr.io/fpletz/docker-nixpkgs/nix-user:nixos-22.11
+        imagePullPolicy: Always
+        name: nix-flakes-generic
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 999
+        volumeMounts:
+        - mountPath: /var/run/argocd
+          name: var-files
+        - mountPath: /home/argocd/cmp-server/plugins
+          name: plugins
+        - mountPath: /home/argocd/cmp-server/config/plugin.yaml
+          name: cmp-plugin-generic
+          subPath: nix-flakes.yaml
+        - mountPath: /tmp
+          name: cmp-tmp
+      - command:
+        - /var/run/argocd/argocd-cmp-server
+        env: []
+        image: ghcr.io/fpletz/docker-nixpkgs/nix-user:nixos-22.11
+        imagePullPolicy: Always
+        name: nix-flakes-sops-tanka
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 999
+        volumeMounts:
+        - mountPath: /var/run/argocd
+          name: var-files
+        - mountPath: /home/argocd/cmp-server/plugins
+          name: plugins
+        - mountPath: /home/argocd/cmp-server/config/plugin.yaml
+          name: cmp-plugin-sops-tanka
+          subPath: nix-flakes.yaml
+        - mountPath: /tmp
+          name: cmp-tmp
+      volumes:
+      - configMap:
+          name: cmp-plugin-sops-tanka
+        name: cmp-plugin-sops-tanka
+      - emptyDir: {}
+        name: cmp-tmp

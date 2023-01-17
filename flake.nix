@@ -14,7 +14,8 @@
     in {
       apps.generateManifests = flake-utils.lib.mkApp {
         drv = pkgs.writers.writeBashBin "tanka-generate" ''
-          ${pkgs.tanka}/bin/tk show environments/default
+          ${pkgs.tanka}/bin/tk show environments/default --dangerous-allow-redirect -t configmap/.\* > manifests/configmap-cmp-plugin.yaml
+          ${pkgs.tanka}/bin/tk show environments/default --dangerous-allow-redirect -t deployment/.\* > manifests/deployment-argocd-repo-server.yaml
         '';
       };
       devShells.default = pkgs.mkShell {
