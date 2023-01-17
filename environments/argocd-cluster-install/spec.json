@@ -1,0 +1,12 @@
+{
+  "apiVersion": "tanka.dev/v1alpha1",
+  "kind": "Environment",
+  "metadata": {
+    "name": "environments/argocd-cluster-install"
+  },
+  "spec": {
+    "namespace": "argocd",
+    "resourceDefaults": {},
+    "expectVersions": {}
+  }
+}

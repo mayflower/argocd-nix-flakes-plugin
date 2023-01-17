@@ -12,10 +12,20 @@
     flake-utils.lib.eachDefaultSystem (system: let
       pkgs = nixpkgs.legacyPackages.${system};
     in {
-      apps.generateManifests = flake-utils.lib.mkApp {
+      apps.generatePatchManifests = flake-utils.lib.mkApp {
         drv = pkgs.writers.writeBashBin "tanka-generate" ''
           ${pkgs.tanka}/bin/tk show environments/default --dangerous-allow-redirect -t configmap/.\* > manifests/configmap-cmp-plugin.yaml
           ${pkgs.tanka}/bin/tk show environments/default --dangerous-allow-redirect -t deployment/.\* > manifests/deployment-argocd-repo-server.yaml
+        '';
+      };
+      apps.showPatchManifests = flake-utils.lib.mkApp {
+        drv = pkgs.writers.writeBashBin "tanka-show" ''
+          ${pkgs.tanka}/bin/tk show environments/default --dangerous-allow-redirect
+        '';
+      };
+      apps.showClusterInstallManifests = flake-utils.lib.mkApp {
+        drv = pkgs.writers.writeBashBin "tanka-show" ''
+          ${pkgs.tanka}/bin/tk show environments/argocd-cluster-install --dangerous-allow-redirect
         '';
       };
       devShells.default = pkgs.mkShell {
@@ -25,9 +35,8 @@
           jsonnet-bundler
           tanka
           kustomize
-          helm
         ];
-        #JSONNET_PATH = "lib:vendor";
+        JSONNET_PATH = "lib:vendor";
       };
     });
 }
