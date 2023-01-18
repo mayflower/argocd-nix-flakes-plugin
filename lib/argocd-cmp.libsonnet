@@ -50,7 +50,7 @@ function(name, generateCommand, findCommand, containerEnv=[]) {
             {
               name: 'nix-%s' % name,
               command: ['/var/run/argocd/argocd-cmp-server'],
-              image: 'ghcr.io/fpletz/docker-nixpkgs/nix-user:nixos-22.11',
+              image: 'ghcr.io/mayflower/docker-nixpkgs/nix-user:nixos-22.11',
               imagePullPolicy: 'Always',
               securityContext: {
                 runAsNonRoot: true,
