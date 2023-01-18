@@ -95,7 +95,7 @@ function(name, generateCommand, findCommand, containerEnv=[]) {
             },
             {
               secret: {
-                secretName: '%s-cmp',
+                secretName: '%s-cmp' % name,
                 optional: true,
               },
               name: '%s-plugin-secret' % name,
