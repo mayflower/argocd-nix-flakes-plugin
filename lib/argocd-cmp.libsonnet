@@ -1,6 +1,6 @@
 local k = import 'github.com/grafana/jsonnet-libs/ksonnet-util/kausal.libsonnet';
 
-function(name, generateCommand, findCommand, containerEnv=[]) {
+function(name, generateCommand, findCommand) {
   ['cmp_plugin_%s' % name]: k.core.v1.configMap.new('cmp-plugin-%s' % name)
                             + k.core.v1.configMap.withData({
                               'plugin.yaml': std.manifestYamlDoc({
@@ -56,7 +56,6 @@ function(name, generateCommand, findCommand, containerEnv=[]) {
                 runAsNonRoot: true,
                 runAsUser: 999,
               },
-              env: containerEnv,
               volumeMounts: [
                 {
                   mountPath: '/var/run/argocd',
