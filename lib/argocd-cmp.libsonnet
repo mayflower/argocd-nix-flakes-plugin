@@ -1,36 +1,36 @@
 local k = import 'github.com/grafana/jsonnet-libs/ksonnet-util/kausal.libsonnet';
 
-function(name, repo_server_name='argocd-repo-server') {
-  cmp_plugins+: [k.core.v1.configMap.new('nix-flakes-cmp-plugin-%s' % name)
-                 + k.core.v1.configMap.withData({
-                   'nix-flakes.yaml': std.manifestYamlDoc({
-                     apiVersion: 'argoproj.io/v1alpha1',
-                     kind: 'ConfigManagementPlugin',
-                     metadata: {
-                       name: 'nix-flakes-plugin-%s' % name,
-                     },
-                     spec: {
-                       allowConcurrency: true,
-                       lockRepo: false,
-                       generate: {
-                         command: [
-                           'sh',
-                           '-c',
-                           'nix run .#apps.x86_64-linux.argoGenerate',
-                         ],
-                       },
-                       discover: {
-                         find: {
-                           command: [
-                             'sh',
-                             '-c',
-                             "nix eval --impure --expr '(builtins.getFlake (toString ./.)).apps.${builtins.currentSystem}.argoGenerate'",
-                           ],
-                         },
-                       },
-                     },
-                   }),
-                 })],
+function(name, generateCommand, findCommand, containerEnv=[]) {
+  ['cmp_plugin_%s' % name]: k.core.v1.configMap.new('cmp-plugin-%s' % name)
+                            + k.core.v1.configMap.withData({
+                              'plugin.yaml': std.manifestYamlDoc({
+                                apiVersion: 'argoproj.io/v1alpha1',
+                                kind: 'ConfigManagementPlugin',
+                                metadata: {
+                                  name: 'cmp-plugin-%s' % name,
+                                },
+                                spec: {
+                                  allowConcurrency: true,
+                                  lockRepo: false,
+                                  generate: {
+                                    command: [
+                                      'sh',
+                                      '-c',
+                                      generateCommand,
+                                    ],
+                                  },
+                                  discover: {
+                                    find: {
+                                      command: [
+                                        'sh',
+                                        '-c',
+                                        findCommand,
+                                      ],
+                                    },
+                                  },
+                                },
+                              }),
+                            }),
   //config_map_argocd_cmd_params_cm+: {
   //  data+: {
   //    'controller.repo.server.timeout.seconds': '120',
@@ -41,14 +41,14 @@ function(name, repo_server_name='argocd-repo-server') {
     apiVersion: 'apps/v1',
     kind: 'Deployment',
     metadata+: {
-      name: repo_server_name,
+      name: 'argocd-repo-server',
     },
     spec+: {
       template+: {
         spec+: {
           containers+: [
             {
-              name: 'nix-flakes-%s' % name,
+              name: 'nix-%s' % name,
               command: ['/var/run/argocd/argocd-cmp-server'],
               image: 'ghcr.io/fpletz/docker-nixpkgs/nix-user:nixos-22.11',
               imagePullPolicy: 'Always',
@@ -56,16 +56,7 @@ function(name, repo_server_name='argocd-repo-server') {
                 runAsNonRoot: true,
                 runAsUser: 999,
               },
-              env: [
-                //{
-                //  name: 'ARGOCD_EXEC_TIMEOUT',
-                //  value: '120',
-                //},
-                //{
-                //  name: 'SOPS_AGE_KEY_FILE',
-                //  value: '/argocd-sops-key/age',
-                //},
-              ],
+              env: containerEnv,
               volumeMounts: [
                 {
                   mountPath: '/var/run/argocd',
@@ -76,23 +67,22 @@ function(name, repo_server_name='argocd-repo-server') {
                   name: 'plugins',
                 },
                 {
-                  mountPath: '/home/argocd/cmp-server/config/plugin.yaml',
-                  subPath: 'nix-flakes.yaml',
+                  mountPath: '/home/argocd/cmp-server/config',
                   name: 'cmp-plugin-%s' % name,
                 },
                 {
                   mountPath: '/tmp',
-                  name: 'cmp-tmp',
+                  name: 'cmp-tmp-%s' % name,
                 },
-                //{
-                //  mountPath: '/argocd-sops-key',
-                //  readOnly: true,
-                //  name: 'argocd-sops-key',
-                //},
+                {
+                  mountPath: '/plugin-secret',
+                  readOnly: true,
+                  name: '%s-plugin-secret' % name,
+                },
               ],
             },
           ],
-          volumes: [
+          volumes+: [
             {
               configMap: {
                 name: 'cmp-plugin-%s' % name,
@@ -101,14 +91,15 @@ function(name, repo_server_name='argocd-repo-server') {
             },
             {
               emptyDir: {},
-              name: 'cmp-tmp',
+              name: 'cmp-tmp-%s' % name,
             },
-            //{
-            //  secret: {
-            //    secretName: 'argocd-sops-key',
-            //  },
-            //  name: 'argocd-sops-key',
-            //},
+            {
+              secret: {
+                secretName: '%s-cmp',
+                optional: true,
+              },
+              name: '%s-plugin-secret' % name,
+            },
           ],
         },
       },

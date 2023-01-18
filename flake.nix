@@ -14,17 +14,20 @@
     in {
       apps.generatePatchManifests = flake-utils.lib.mkApp {
         drv = pkgs.writers.writeBashBin "tanka-generate" ''
+          ${pkgs.jsonnet-bundler}/bin/jb install
           ${pkgs.tanka}/bin/tk show environments/default --dangerous-allow-redirect -t configmap/.\* > manifests/configmap-cmp-plugin.yaml
           ${pkgs.tanka}/bin/tk show environments/default --dangerous-allow-redirect -t deployment/.\* > manifests/deployment-argocd-repo-server.yaml
         '';
       };
       apps.showPatchManifests = flake-utils.lib.mkApp {
         drv = pkgs.writers.writeBashBin "tanka-show" ''
+          ${pkgs.jsonnet-bundler}/bin/jb install
           ${pkgs.tanka}/bin/tk show environments/default --dangerous-allow-redirect
         '';
       };
       apps.showClusterInstallManifests = flake-utils.lib.mkApp {
         drv = pkgs.writers.writeBashBin "tanka-show" ''
+          ${pkgs.jsonnet-bundler}/bin/jb install
           ${pkgs.tanka}/bin/tk show environments/argocd-cluster-install --dangerous-allow-redirect
         '';
       };
