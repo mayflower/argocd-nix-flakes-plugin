@@ -31,6 +31,20 @@
         inherit system;
         overlays = [self.overlays.default];
       };
+      tankaSopsCmd = verb: ''
+        set -e
+        export SOPS_AGE_KEY_FILE=''${SOPS_AGE_KEY_FILE:-/plugin-secret/sops_age}
+        export ARGOCD_ENV_TK_ENV=''${ARGOCD_ENV_TK_ENV:-''${TK_ENV:-default}}
+        export COMMIT_HASH=''${ARGOCD_APP_REVISION:-$(git rev-parse @)}
+        ${pkgs.jsonnet-bundler}/bin/jb install
+        ${pkgs.tanka}/bin/tk tool charts vendor || true
+        ${pkgs.sops}/bin/sops -d "environments/$ARGOCD_ENV_TK_ENV/secrets.sops.yaml" | \
+          ${pkgs.tanka}/bin/tk ${verb} \
+            --tla-code "secrets_yaml=importstr '/dev/stdin'" \
+            --ext-str "commit_hash=$COMMIT_HASH" \
+            --dangerous-allow-redirect \
+            "environments/$ARGOCD_ENV_TK_ENV"
+      '';
     in {
       formatter = pkgs.alejandra;
       apps.generatePatchManifests = flake-utils.lib.mkApp {
@@ -55,21 +69,18 @@
           ${pkgs.tanka}/bin/tk show environments/argocd-cluster-install --dangerous-allow-redirect
         '';
       };
-      apps.argoGenerate = flake-utils.lib.mkApp {
-        drv = pkgs.writers.writeBashBin "sops-tanka-generate" ''
-          set -e
-          export SOPS_AGE_KEY_FILE=''${SOPS_AGE_KEY_FILE:-/plugin-secret/sops_age}
-          export ARGOCD_ENV_TK_ENV=''${ARGOCD_ENV_TK_ENV:-default}
-          ${pkgs.jsonnet-bundler}/bin/jb install
-          ${pkgs.tanka}/bin/tk tool charts vendor || true
-          ${pkgs.sops}/bin/sops -d "environments/$ARGOCD_ENV_TK_ENV/secrets.sops.yaml" | \
-            ${pkgs.tanka}/bin/tk show \
-              --tla-code "secrets_yaml=importstr '/dev/stdin'" \
-              --ext-str "commit_hash=$ARGOCD_APP_REVISION" \
-              --dangerous-allow-redirect \
-              "environments/$ARGOCD_ENV_TK_ENV"
+      apps.showKustomizeExample = flake-utils.lib.mkApp {
+        drv = pkgs.writers.writeBashBin "kustomize-generate" ''
+          ${pkgs.kubectl}/bin/kubectl kustomize example
         '';
       };
+      apps.tankaShow = flake-utils.lib.mkApp {
+        drv = pkgs.writers.writeBashBin "sops-tanka-show" (tankaSopsCmd "show");
+      };
+      apps.tankaEval = flake-utils.lib.mkApp {
+        drv = pkgs.writers.writeBashBin "sops-tanka-eval" (tankaSopsCmd "eval");
+      };
+      apps.argoGenerate = self.apps.${system}.tankaShow;
       devShells.default = pkgs.mkShell {
         name = "argocd-nix-flakes-plugin";
         packages = with pkgs; [

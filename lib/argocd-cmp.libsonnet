@@ -2,6 +2,10 @@ local k = import 'github.com/grafana/jsonnet-libs/ksonnet-util/kausal.libsonnet'
 
 function(name, generateCommand, findCommand) {
   ['cmp_plugin_%s' % name]: k.core.v1.configMap.new('cmp-plugin-%s' % name)
+                            + k.core.v1.configMap.metadata.withLabels({
+                              'app.kubernetes.io/version': std.extVar('commit_hash'),
+                              'app.kubernetes.io/part-of': 'argocd',
+                            })
                             + k.core.v1.configMap.withData({
                               'plugin.yaml': std.manifestYamlDoc({
                                 apiVersion: 'argoproj.io/v1alpha1',

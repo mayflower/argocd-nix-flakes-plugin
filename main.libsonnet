@@ -12,6 +12,13 @@ local argocd_cmp_patch = import 'lib/argocd-cmp.libsonnet';
       nix eval --impure --expr '(builtins.getFlake (toString ./.)).apps.${builtins.currentSystem}.argoGenerate'
     |||,
   ),
+  insecure_generic_flakes_plugin:: self.argocd_cmp_patch(
+    'insecure-flake',
+    generateCommand='nix run .#argoGenerate',
+    findCommand=|||
+      nix eval --impure --expr '(builtins.getFlake (toString ./.)).apps.${builtins.currentSystem}.argoGenerate'
+    |||,
+  ),
   sops_tanka_plugin:: self.argocd_cmp_patch(
     'sops-tanka',
     generateCommand='nix run /home/argocd/cmp-server/config#argoGenerate',
