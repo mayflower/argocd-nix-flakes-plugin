@@ -42,7 +42,7 @@
           ${pkgs.tanka}/bin/tk ${verb} \
             --tla-code "secrets_yaml=importstr '/dev/stdin'" \
             --ext-str "commit_hash=$COMMIT_HASH" \
-            --dangerous-allow-redirect \
+            ${pkgs.lib.optionalString (verb == "show") "--dangerous-allow-redirect"} \
             "environments/$ARGOCD_ENV_TK_ENV"
       '';
     in {
