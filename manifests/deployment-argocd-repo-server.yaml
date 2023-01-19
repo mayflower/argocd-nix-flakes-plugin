@@ -8,10 +8,9 @@ spec:
       containers:
       - command:
         - /var/run/argocd/argocd-cmp-server
-        env: []
-        image: ghcr.io/fpletz/docker-nixpkgs/nix-user:nixos-22.11
+        image: ghcr.io/mayflower/docker-nixpkgs/nix-user:nixos-22.11
         imagePullPolicy: Always
-        name: nix-flakes-generic
+        name: nix-flake
         securityContext:
           runAsNonRoot: true
           runAsUser: 999
@@ -20,17 +19,18 @@ spec:
           name: var-files
         - mountPath: /home/argocd/cmp-server/plugins
           name: plugins
-        - mountPath: /home/argocd/cmp-server/config/plugin.yaml
-          name: cmp-plugin-generic
-          subPath: nix-flakes.yaml
+        - mountPath: /home/argocd/cmp-server/config
+          name: cmp-plugin-flake
         - mountPath: /tmp
-          name: cmp-tmp
+          name: cmp-tmp-flake
+        - mountPath: /plugin-secret
+          name: flake-plugin-secret
+          readOnly: true
       - command:
         - /var/run/argocd/argocd-cmp-server
-        env: []
-        image: ghcr.io/fpletz/docker-nixpkgs/nix-user:nixos-22.11
+        image: ghcr.io/mayflower/docker-nixpkgs/nix-user:nixos-22.11
         imagePullPolicy: Always
-        name: nix-flakes-sops-tanka
+        name: nix-sops-tanka
         securityContext:
           runAsNonRoot: true
           runAsUser: 999
@@ -39,14 +39,29 @@ spec:
           name: var-files
         - mountPath: /home/argocd/cmp-server/plugins
           name: plugins
-        - mountPath: /home/argocd/cmp-server/config/plugin.yaml
+        - mountPath: /home/argocd/cmp-server/config
           name: cmp-plugin-sops-tanka
-          subPath: nix-flakes.yaml
         - mountPath: /tmp
-          name: cmp-tmp
+          name: cmp-tmp-sops-tanka
+        - mountPath: /plugin-secret
+          name: sops-tanka-plugin-secret
+          readOnly: true
       volumes:
+      - configMap:
+          name: cmp-plugin-flake
+        name: cmp-plugin-flake
+      - emptyDir: {}
+        name: cmp-tmp-flake
+      - name: flake-plugin-secret
+        secret:
+          optional: true
+          secretName: flake-cmp
       - configMap:
           name: cmp-plugin-sops-tanka
         name: cmp-plugin-sops-tanka
       - emptyDir: {}
-        name: cmp-tmp
+        name: cmp-tmp-sops-tanka
+      - name: sops-tanka-plugin-secret
+        secret:
+          optional: true
+          secretName: sops-tanka-cmp

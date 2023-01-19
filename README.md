@@ -49,10 +49,10 @@ kind: Kustomization
 namespace: argocd
 
 resources:
-- github.com/argoproj/argo-cd//manifests/cluster-install?ref=v2.5.5
+- github.com/argoproj/argo-cd//manifests/cluster-install?ref=v2.5.7
 
 components:
-- github.com/mayflower/argocd-nix-flakes-plugin//manifests?ref=v0.1
+- github.com/mayflower/argocd-nix-flakes-plugin//manifests?ref=v0.2
 ```
 
 ## How to use in your ArgoCD Application

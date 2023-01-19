@@ -1,10 +1,10 @@
 apiVersion: v1
 data:
-  nix-flakes.yaml: |-
+  plugin.yaml: |-
     "apiVersion": "argoproj.io/v1alpha1"
     "kind": "ConfigManagementPlugin"
     "metadata":
-      "name": "nix-flakes-plugin-generic"
+      "name": "cmp-plugin-flake"
     "spec":
       "allowConcurrency": true
       "discover":
@@ -12,24 +12,176 @@ data:
           "command":
           - "sh"
           - "-c"
-          - "nix eval --impure --expr '(builtins.getFlake (toString ./.)).apps.${builtins.currentSystem}.argoGenerate'"
+          - |
+            set -e
+            grep -x $ARGOCD_APP_SOURCE_REPO_URL /plugin-secret/repo-whitelist
+            nix eval --impure --expr '(builtins.getFlake (toString ./.)).apps.${builtins.currentSystem}.argoGenerate'
       "generate":
         "command":
         - "sh"
         - "-c"
-        - "nix run .#apps.x86_64-linux.argoGenerate"
+        - "nix run .#argoGenerate"
       "lockRepo": false
 kind: ConfigMap
 metadata:
-  name: nix-flakes-cmp-plugin-generic
+  labels:
+    app.kubernetes.io/part-of: argocd
+    app.kubernetes.io/version: 404e8ba76e64bf0066a15abd48179e19202fa56f
+  name: cmp-plugin-flake
 ---
 apiVersion: v1
 data:
-  nix-flakes.yaml: |-
+  flake.lock: |
+    {
+      "nodes": {
+        "flake-utils": {
+          "locked": {
+            "lastModified": 1667395993,
+            "narHash": "sha256-nuEHfE/LcWyuSWnS8t12N1wc105Qtau+/OdUAjtQ0rA=",
+            "owner": "numtide",
+            "repo": "flake-utils",
+            "rev": "5aed5285a952e0b949eb3ba02c12fa4fcfef535f",
+            "type": "github"
+          },
+          "original": {
+            "owner": "numtide",
+            "repo": "flake-utils",
+            "type": "github"
+          }
+        },
+        "nixpkgs": {
+          "locked": {
+            "lastModified": 1673800717,
+            "narHash": "sha256-SFHraUqLSu5cC6IxTprex/nTsI81ZQAtDvlBvGDWfnA=",
+            "owner": "NixOS",
+            "repo": "nixpkgs",
+            "rev": "2f9fd351ec37f5d479556cd48be4ca340da59b8f",
+            "type": "github"
+          },
+          "original": {
+            "owner": "NixOS",
+            "ref": "nixos-22.11",
+            "repo": "nixpkgs",
+            "type": "github"
+          }
+        },
+        "root": {
+          "inputs": {
+            "flake-utils": "flake-utils",
+            "nixpkgs": "nixpkgs"
+          }
+        }
+      },
+      "root": "root",
+      "version": 7
+    }
+  flake.nix: |
+    {
+      inputs = {
+        nixpkgs.url = "github:NixOS/nixpkgs/nixos-22.11";
+        flake-utils.url = "github:numtide/flake-utils";
+      };
+
+      outputs = {
+        self,
+        nixpkgs,
+        flake-utils,
+        ...
+      }:
+        {
+          overlays.default = final: prev: {
+            tanka = prev.tanka.overrideAttrs (attrs: {
+              nativeBuildInputs = attrs.nativeBuildInputs ++ [final.makeWrapper];
+              postInstall =
+                attrs.postInstall
+                + ''
+                  wrapProgram $out/bin/tk \
+                    --prefix PATH : ${final.lib.makeBinPath [
+                    final.kustomize
+                    final.kubernetes-helm
+                  ]}
+                '';
+            });
+          };
+        }
+        // flake-utils.lib.eachDefaultSystem (system: let
+          pkgs = import nixpkgs {
+            inherit system;
+            overlays = [self.overlays.default];
+          };
+          tankaSopsCmd = verb: ''
+            set -e
+            export SOPS_AGE_KEY_FILE=''${SOPS_AGE_KEY_FILE:-/plugin-secret/sops_age}
+            export ARGOCD_ENV_TK_ENV=''${ARGOCD_ENV_TK_ENV:-''${TK_ENV:-default}}
+            export COMMIT_HASH=''${ARGOCD_APP_REVISION:-$(git rev-parse @)}
+            ${pkgs.jsonnet-bundler}/bin/jb install
+            ${pkgs.tanka}/bin/tk tool charts vendor || true
+            ${pkgs.sops}/bin/sops -d "environments/$ARGOCD_ENV_TK_ENV/secrets.sops.yaml" | \
+              ${pkgs.tanka}/bin/tk ${verb} \
+                --tla-code "secrets_yaml=importstr '/dev/stdin'" \
+                --ext-str "commit_hash=$COMMIT_HASH" \
+                ${pkgs.lib.optionalString (verb == "show") "--dangerous-allow-redirect"} \
+                "environments/$ARGOCD_ENV_TK_ENV"
+          '';
+        in {
+          formatter = pkgs.alejandra;
+          apps.generatePatchManifests = flake-utils.lib.mkApp {
+            drv = pkgs.writers.writeBashBin "tanka-generate" ''
+              set -e
+              ${pkgs.jsonnet-bundler}/bin/jb install
+              ${pkgs.tanka}/bin/tk show environments/default --dangerous-allow-redirect \
+                --ext-str "commit_hash=$(git rev-parse @)" \
+                -t configmap/.\* > manifests/configmap-cmp-plugin.yaml
+              ${pkgs.tanka}/bin/tk show environments/default --dangerous-allow-redirect \
+                --ext-str "commit_hash=$(git rev-parse @)" \
+                -t deployment/.\* > manifests/deployment-argocd-repo-server.yaml
+            '';
+          };
+          apps.showPatchManifests = flake-utils.lib.mkApp {
+            drv = pkgs.writers.writeBashBin "tanka-show" ''
+              set -e
+              ${pkgs.jsonnet-bundler}/bin/jb install
+              ${pkgs.tanka}/bin/tk show environments/default --dangerous-allow-redirect \
+                --ext-str "commit_hash=$(git rev-parse @)"
+            '';
+          };
+          apps.showClusterInstallManifests = flake-utils.lib.mkApp {
+            drv = pkgs.writers.writeBashBin "tanka-show" ''
+              set -e
+              ${pkgs.jsonnet-bundler}/bin/jb install
+              ${pkgs.tanka}/bin/tk show environments/argocd-cluster-install --dangerous-allow-redirect \
+                --ext-str "commit_hash=$(git rev-parse @)"
+            '';
+          };
+          apps.showKustomizeExample = flake-utils.lib.mkApp {
+            drv = pkgs.writers.writeBashBin "kustomize-generate" ''
+              ${pkgs.kubectl}/bin/kubectl kustomize example
+            '';
+          };
+          apps.tankaShow = flake-utils.lib.mkApp {
+            drv = pkgs.writers.writeBashBin "sops-tanka-show" (tankaSopsCmd "show");
+          };
+          apps.tankaEval = flake-utils.lib.mkApp {
+            drv = pkgs.writers.writeBashBin "sops-tanka-eval" (tankaSopsCmd "eval");
+          };
+          apps.argoGenerate = self.apps.${system}.tankaShow;
+          devShells.default = pkgs.mkShell {
+            name = "argocd-nix-flakes-plugin";
+            packages = with pkgs; [
+              jsonnet
+              jsonnet-bundler
+              tanka
+              kustomize
+            ];
+            JSONNET_PATH = "lib:vendor";
+          };
+        });
+    }
+  plugin.yaml: |-
     "apiVersion": "argoproj.io/v1alpha1"
     "kind": "ConfigManagementPlugin"
     "metadata":
-      "name": "nix-flakes-plugin-sops-tanka"
+      "name": "cmp-plugin-sops-tanka"
     "spec":
       "allowConcurrency": true
       "discover":
@@ -37,13 +189,16 @@ data:
           "command":
           - "sh"
           - "-c"
-          - "nix eval --impure --expr '(builtins.getFlake (toString ./.)).apps.${builtins.currentSystem}.argoGenerate'"
+          - "test -f \"environments/${ARGOCD_ENV_TK_ENV:-default}/main.jsonnet\" && echo $ARGOCD_ENV_TK_ENV"
       "generate":
         "command":
         - "sh"
         - "-c"
-        - "nix run .#apps.x86_64-linux.argoGenerate"
+        - "nix run /home/argocd/cmp-server/config#argoGenerate"
       "lockRepo": false
 kind: ConfigMap
 metadata:
-  name: nix-flakes-cmp-plugin-sops-tanka
+  labels:
+    app.kubernetes.io/part-of: argocd
+    app.kubernetes.io/version: 404e8ba76e64bf0066a15abd48179e19202fa56f
+  name: cmp-plugin-sops-tanka
