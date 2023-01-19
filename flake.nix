@@ -51,22 +51,28 @@
         drv = pkgs.writers.writeBashBin "tanka-generate" ''
           set -e
           ${pkgs.jsonnet-bundler}/bin/jb install
-          ${pkgs.tanka}/bin/tk show environments/default --dangerous-allow-redirect -t configmap/.\* > manifests/configmap-cmp-plugin.yaml
-          ${pkgs.tanka}/bin/tk show environments/default --dangerous-allow-redirect -t deployment/.\* > manifests/deployment-argocd-repo-server.yaml
+          ${pkgs.tanka}/bin/tk show environments/default --dangerous-allow-redirect \
+            --ext-str "commit_hash=$(git rev-parse @)" \
+            -t configmap/.\* > manifests/configmap-cmp-plugin.yaml
+          ${pkgs.tanka}/bin/tk show environments/default --dangerous-allow-redirect \
+            --ext-str "commit_hash=$(git rev-parse @)" \
+            -t deployment/.\* > manifests/deployment-argocd-repo-server.yaml
         '';
       };
       apps.showPatchManifests = flake-utils.lib.mkApp {
         drv = pkgs.writers.writeBashBin "tanka-show" ''
           set -e
           ${pkgs.jsonnet-bundler}/bin/jb install
-          ${pkgs.tanka}/bin/tk show environments/default --dangerous-allow-redirect
+          ${pkgs.tanka}/bin/tk show environments/default --dangerous-allow-redirect \
+            --ext-str "commit_hash=$(git rev-parse @)"
         '';
       };
       apps.showClusterInstallManifests = flake-utils.lib.mkApp {
         drv = pkgs.writers.writeBashBin "tanka-show" ''
           set -e
           ${pkgs.jsonnet-bundler}/bin/jb install
-          ${pkgs.tanka}/bin/tk show environments/argocd-cluster-install --dangerous-allow-redirect
+          ${pkgs.tanka}/bin/tk show environments/argocd-cluster-install --dangerous-allow-redirect \
+            --ext-str "commit_hash=$(git rev-parse @)"
         '';
       };
       apps.showKustomizeExample = flake-utils.lib.mkApp {
