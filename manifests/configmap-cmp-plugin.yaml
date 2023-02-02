@@ -26,7 +26,7 @@ kind: ConfigMap
 metadata:
   labels:
     app.kubernetes.io/part-of: argocd
-    app.kubernetes.io/version: 404e8ba76e64bf0066a15abd48179e19202fa56f
+    app.kubernetes.io/version: 6051d0df881a011c37cd261464df241320404fff
   name: cmp-plugin-flake
 ---
 apiVersion: v1
@@ -109,7 +109,8 @@ data:
             inherit system;
             overlays = [self.overlays.default];
           };
-          tankaSopsCmd = verb: ''
+          inherit (nixpkgs) lib;
+          tankaSopsCmd = extraCfgFile: verb: ''
             set -e
             export SOPS_AGE_KEY_FILE=''${SOPS_AGE_KEY_FILE:-/plugin-secret/sops_age}
             export ARGOCD_ENV_TK_ENV=''${ARGOCD_ENV_TK_ENV:-''${TK_ENV:-default}}
@@ -119,11 +120,16 @@ data:
             ${pkgs.sops}/bin/sops -d "environments/$ARGOCD_ENV_TK_ENV/secrets.sops.yaml" | \
               ${pkgs.tanka}/bin/tk ${verb} \
                 --tla-code "secrets_yaml=importstr '/dev/stdin'" \
+                ${lib.optionalString (extraCfgFile != null) ''--ext-code "extra_cfg=import '${extraCfgFile}'"''} \
                 --ext-str "commit_hash=$COMMIT_HASH" \
-                ${pkgs.lib.optionalString (verb == "show") "--dangerous-allow-redirect"} \
+                ${lib.optionalString (verb == "show") "--dangerous-allow-redirect"} \
                 "environments/$ARGOCD_ENV_TK_ENV"
           '';
         in {
+          lib.tankaAppBuilders = lib.genAttrs [ "show" "eval" ]
+            (verb: extraCfgFile: flake-utils.lib.mkApp {
+              drv = pkgs.writers.writeBashBin "sops-tanka-${verb}" (tankaSopsCmd extraCfgFile verb);
+            });
           formatter = pkgs.alejandra;
           apps.generatePatchManifests = flake-utils.lib.mkApp {
             drv = pkgs.writers.writeBashBin "tanka-generate" ''
@@ -158,12 +164,8 @@ data:
               ${pkgs.kubectl}/bin/kubectl kustomize example
             '';
           };
-          apps.tankaShow = flake-utils.lib.mkApp {
-            drv = pkgs.writers.writeBashBin "sops-tanka-show" (tankaSopsCmd "show");
-          };
-          apps.tankaEval = flake-utils.lib.mkApp {
-            drv = pkgs.writers.writeBashBin "sops-tanka-eval" (tankaSopsCmd "eval");
-          };
+          apps.tankaShow = self.lib.${system}.tankaAppBuilders.show null;
+          apps.tankaEval = self.lib.${system}.tankaAppBuilders.eval null;
           apps.argoGenerate = self.apps.${system}.tankaShow;
           devShells.default = pkgs.mkShell {
             name = "argocd-nix-flakes-plugin";
@@ -200,5 +202,5 @@ kind: ConfigMap
 metadata:
   labels:
     app.kubernetes.io/part-of: argocd
-    app.kubernetes.io/version: 404e8ba76e64bf0066a15abd48179e19202fa56f
+    app.kubernetes.io/version: 6051d0df881a011c37cd261464df241320404fff
   name: cmp-plugin-sops-tanka
